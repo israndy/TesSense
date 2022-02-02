@@ -22,5 +22,7 @@ going down or anytime there are too many power draws in your location the app wi
 off charging. When the surplus solar returns, the charging will start again.
 
 Requires the installation of TeslaPy and Sense_API:
+
 python3 -m pip install teslapy
+
 python3 -m pip install sense_energy
