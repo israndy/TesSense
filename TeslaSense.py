@@ -6,14 +6,14 @@ from time import sleep
 
 print ("Initating connection to Sense...")
 from sense_energy import Senseable
-username = 'israndy@yahoo.com'
-password = 'getbe5-buvqiw-bugPut'
+username = 'elon@tesla.com'
+password = 'password'
 sense = Senseable(wss_timeout=30,api_timeout=30)
 sense.authenticate(username, password)
 
 print ("Starting connection to Tesla...")
 import teslapy
-with teslapy.Tesla('israndy@yahoo.com') as tesla:
+with teslapy.Tesla('elon@tesla.com') as tesla:
     vehicles = tesla.vehicle_list()
     try:
         print(vehicles[0].get_vehicle_data()['display_name'], " ", vehicles[0].get_vehicle_data()['charge_state']['charging_state'])
