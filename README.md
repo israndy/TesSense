@@ -20,3 +20,7 @@ that back into the app and you will be logged in securely and you can watch as t
 surplus solar and uses that to set the charging rate on your car. Before sunrise and after the sun starts 
 going down or anytime there are too many power draws in your location the app will ask your Tesla to turn 
 off charging. When the surplus solar returns, the charging will start again.
+
+Requires the installation of TeslaPy and Sense_API:
+python3 -m pip install teslapy
+python3 -m pip install sense_energy
