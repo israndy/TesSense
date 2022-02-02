@@ -25,7 +25,7 @@ with teslapy.Tesla('elon@tesla.com') as tesla:
         charging = False
         
 amps = 5            # Minimum rate charger can go to
-volts = 120         # Minimum volts in those watts
+volts = 120         # Minimum volts
 
 while (True):
     sense.update_realtime()
