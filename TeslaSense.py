@@ -15,7 +15,9 @@ import teslapy
 with teslapy.Tesla('elon@tesla.com') as tesla:
     vehicles = tesla.vehicle_list()
     try:
-        print(vehicles[0].get_vehicle_data()['display_name'], " ", vehicles[0].get_vehicle_data()['charge_state']['charging_state'])
+        print(vehicles[0].get_vehicle_data()['display_name'], " ", vehicles[0].get_vehicle_data()['charge_state']['charging_state'], "\n")
+        if vehicles[0].get_vehicle_data()['charge_state']['charging_state'] == "Disconnected":
+            sys.exit("Please plug the vehicle in")
         if vehicles[0].get_vehicle_data()['charge_state']['charging_state'] == "Charging":
             charging = True
         else:
@@ -28,28 +30,33 @@ amps = 5            # Minimum rate charger can go to
 volts = 120         # Minimum volts
 
 while (True):
-    sense.update_realtime()
-    active_power = str(sense.active_power).split('.')[0]
-    active_solar_power = str(sense.active_solar_power).split('.')[0]
-    asp = int(active_solar_power)
-    ap = int(active_power)
-    power_diff = asp-ap
+    try :
+        sense.update_realtime()
+        active_power = str(sense.active_power).split('.')[0]
+        active_solar_power = str(sense.active_solar_power).split('.')[0]
+        asp = int(active_solar_power)
+        ap = int(active_power)
+        power_diff = asp-ap
+    except :
+        sys.exit("Sense Timeout")
 
     try :
         if vehicles[0].get_vehicle_data()['charge_state']['charging_state'] == "Charging":
+            if not charging :
+                print("Now charging")
             charging = True
             amps = vehicles[0].get_vehicle_data()['charge_state']['charge_current_request']
             maxamps = vehicles[0].get_vehicle_data()['charge_state']['charge_current_request_max']
             volts = vehicles[0].get_vehicle_data()['charge_state']['charger_voltage']
         else:
+            if charging :
+                print("No longer charging")
             charging = False
     except :
         charging = False
-
+        
     if charging :                           # check if need to change rate or stop
-        newrate = amps + int( power_diff / volts )
-        if newrate > maxamps :
-            newrate = maxamps
+        newrate = min(amps + int( power_diff / volts ), maxamps)
         if power_diff > 0 :
             print ("Charging at", amps, "amps, with", power_diff, "watts surplus")
             if newrate > amps :
@@ -57,7 +64,7 @@ while (True):
                 vehicles[0].command('CHARGING_AMPS', charging_amps = newrate )
                 amps = newrate
         else :                                                 # Not enough power
-            print ("Charging at", amps, "amps, with", power_diff, "usaage")
+            print ("Charging at", amps, "amps, with", power_diff, "watts usage")
             if newrate < 5 :                            # can't charge below 5 amps
                 print ("Stopping charge")
                 vehicles[0].command('STOP_CHARGE')
@@ -66,6 +73,7 @@ while (True):
                 print ("Slowing charging to", newrate, "amps")
                 vehicles[0].command('CHARGING_AMPS', charging_amps = newrate )
                 amps = newrate
+                
     else :                                  # NOT Charging, check if need to start
         print ("Not Charging, Spare power at", power_diff, "watts")
         if power_diff > (5 * volts) :                         # Minimum charge rate
@@ -76,6 +84,7 @@ while (True):
                 print ("Failed to wake")
             sleep(10)
             try :
+                print("On", vehicles[0].get_vehicle_data()['display_name'])
                 vehicles[0].command('START_CHARGE')
                 charging = True
             except :
@@ -86,5 +95,5 @@ while (True):
             except :
                 print ("Failed to set rate")
 
-    print("Waiting 60 sec...")
+    print("Wait a minute...")
     sleep(60) #The fastest the Sense API will update
