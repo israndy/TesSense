@@ -101,8 +101,7 @@ while (True):
             try :
                 if vehicles[0].get_vehicle_data()['charge_state']['charging_state'] != "Charging" :
                     vehicles[0].command('START_CHARGE')
-                    vehicles[0].command('CHARGING_AMPS', charging_amps=4)
-                    vehicles[0].command('CHARGING_AMPS', charging_amps=4)
+                    vehicles[0].command('CHARGING_AMPS', charging_amps=5)
                     charging = True
             except teslapy.HTTPError as e :
                 print ("failed to start charging\n", e)
