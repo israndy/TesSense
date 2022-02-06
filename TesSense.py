@@ -28,10 +28,6 @@ with teslapy.Tesla(username) as tesla:
     print(car['display_name'], "is", car['state'], "\n")
     if car['state'] != 'online' : charging = False
     
-#print(vehicles[0].get_vehicle_data()) # shows all car data available if online
-#print( dir( teslapy ) ) # shows all the TeslaPy API functions
-#print( dir( Senseable ) ) # shows all the Sense API functions
-
 amps = 5            # Minimum rate charger can go to
 volts = 120         # Minimum volts
 
