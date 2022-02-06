@@ -1,4 +1,4 @@
-# TeslaSense
+# TesSense
 Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Second Release (2/2/22)
 
 TeslaSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
