@@ -1,5 +1,5 @@
-#username = 'elon@tesla.com'         # Sense's and Tesla's login
-#password = 'password'               # Sense's password, Tesla will prompt for it's
+username = 'elon@tesla.com'         # Sense's and Tesla's login
+password = 'password'               # Sense's password, Tesla will prompt for it's
 
 #
 # TesSense  -Randy Spencer 2022
