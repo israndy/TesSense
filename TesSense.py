@@ -2,7 +2,7 @@ username = 'elon@tesla.com'         # Sense's and Tesla's login
 password = 'password'               # Sense's password, Tesla will prompt for it's own
 
 """
- TesSense  -Randy Spencer 2022 version .4
+ TesSense  -Randy Spencer 2022
  Python charge monitoring utility for those who own the Sense Energy Monitor
  Uses the stats for Production and Utilization of electricity to control
  your main Tesla's AC charging to use excess production only when charging.
@@ -18,13 +18,13 @@ from time import sleep
 
 rate = minrate = 0                                    # Minimum rate you want to set the charger to
 volts = 120                                           # Minimum volts, until detected by the charger
-bshown = pshown = loop = charge = charging = False    # init more variables
+pshown = loop = charge = charging = False             # init more variables
 
 def printmsg(msg) :                                   # Timestamped message
-    print( datetime.datetime.now().strftime( "%I:%M %p" ), msg )
+    print( datetime.datetime.now().strftime( "%d %I:%M %p" ), msg )
     
 def printerror(error, err) :                          # Error message with truncated data
-    print( datetime.datetime.now().strftime( "%I:%M %p" ), error+"\n", str(err).split("}")[0], "}" )
+    print( datetime.datetime.now().strftime( "%d %I:%M %p" ), error+"\n", str(err).split("}")[0], "}" )
     
 # To install support module:
 # Python3 -m pip install sense_energy
@@ -73,12 +73,7 @@ with teslapy.Tesla( username ) as tesla:
             else : pshown = False
             
             if chargedata['battery_level'] >= chargedata['charge_limit_soc'] : # Loop when full
-                if not bshown :
-                    printmsg("Full Battery! Waiting...")
-                    bshown = True
-                sleep( 60 )
-                continue
-            else : bshown = False
+                exit("Full Battery!")
 
             if chargedata['fast_charger_present']:    # Loop while DC Fast Charging
                 printmsg("Supercharging...")
