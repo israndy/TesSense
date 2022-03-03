@@ -21,10 +21,10 @@ volts = 120                                           # Minimum volts, until det
 pshown = loop = charge = charging = False             # init more variables
 
 def printmsg(msg) :                                   # Timestamped message
-    print( datetime.datetime.now().strftime( "%d %I:%M %p" ), msg )
+    print( datetime.datetime.now().strftime( "%a %I:%M %p" ), msg )
     
 def printerror(error, err) :                          # Error message with truncated data
-    print( datetime.datetime.now().strftime( "%d %I:%M %p" ), error+"\n", str(err).split("}")[0], "}" )
+    print( datetime.datetime.now().strftime( "%a %I:%M %p" ), error+"\n", str(err).split("}")[0], "}" )
     
 # To install support module:
 # Python3 -m pip install sense_energy
