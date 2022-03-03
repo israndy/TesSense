@@ -1,21 +1,31 @@
 username = 'elon@tesla.com'         # Sense's and Tesla's login
-password = 'password'               # Sense's password, Tesla will prompt for it's
+password = 'password'               # Sense's password, Tesla will prompt for it's own
 
 """
- TesSense  -Randy Spencer 2022
+ TesSense  -Randy Spencer 2022 version .4
  Python charge monitoring utility for those who own the Sense Energy Monitor
  Uses the stats for Production and Utilization of electricity to control
  your main Tesla's AC charging to use excess production only when charging.
- Simply plug in your car, update your info above, and type> python3 teslasense.py
+ Simply plug in your car, update your info above, and type> python3 tessense.py
 
+ Added: another minute to remove powering off due to spurius spikes/clouds
  Add: reporting the Tesla's charging to Sense as if plugged into a TP-Link/Kasa
  Add: ability to find TP-Link devices on the network and control them.
 """
 
 import datetime
 from time import sleep
-from os.path import exists # Needed to open a Supercharger log file
 
+rate = minrate = 0                                    # Minimum rate you want to set the charger to
+volts = 120                                           # Minimum volts, until detected by the charger
+bshown = pshown = loop = charge = charging = False    # init more variables
+
+def printmsg(msg) :                                   # Timestamped message
+    print( datetime.datetime.now().strftime( "%I:%M %p" ), msg )
+    
+def printerror(error, err) :                          # Error message with truncated data
+    print( datetime.datetime.now().strftime( "%I:%M %p" ), error+"\n", str(err).split("}")[0], "}" )
+    
 # To install support module:
 # Python3 -m pip install sense_energy
 print ("Initating connection to Sense...")
@@ -31,135 +41,139 @@ with teslapy.Tesla( username ) as tesla:
     car = vehicles[0].get_vehicle_summary()
     print(car['display_name'], "is", car['state'], "\n")
     
-#print( "Tesla Info:\n", vehicles[0].get_vehicle_data(), "\n\n" ) # shows all car data available
-#print( "TeslaPy:\n", dir( teslapy ), "\n\n" ) # shows all the TeslaPy API functions
-#print( "Senseable:\n", dir( Senseable ), "\n\n" ) # shows all the Sense API functions
+    #print( "Tesla Info:\n", vehicles[0].get_vehicle_data(), "\n\n" ) # shows all car data available
+    #print( "TeslaPy:\n", dir( teslapy ), "\n\n" )         # shows all the TeslaPy API functions
+    #print( "Senseable:\n", dir( Senseable ), "\n\n" )     # shows all the Sense API functions
 
-rate = minrate = 2            # Minimum rate you want to set the charger to
-volts = 120                   # Minimum volts until detected by the charger
-shown = loop = charge = charging = False
-
-while (True):
-    try :
-        sense.update_realtime()
-        asp = int(sense.active_solar_power)
-        ap = int(sense.active_power)
-        power_diff = asp-ap
-    except :
-        print( "Sense Timeout" )
-        sleep(10)
-        continue # back to the top of the order
-
-    try : car = vehicles[0].get_vehicle_summary()
-    except teslapy.HTTPError as e:
-        print( "Failed to get summary", str(e).split("}")[0], "}" )
-        sleep(30)
-        continue
-    
-    if car['in_service'] :
-        print( car['display_name'], "is driving..." )
-        sleep( 300 )
-        continue
-        
-    if car['state'] == 'online' :
+    while (True):
         try :
-            chargedata=vehicles[0].get_vehicle_data()['charge_state']
-        except teslapy.HTTPError as e:
-            print( datetime.datetime.now().strftime( "%I:%M %p" ), "Tesla failed to update, please wait a minute...\n", str(e).split("}")[0], "}" )
-            sleep( 60 )
-            continue
+            sense.update_realtime()                   # Update Sense info
+            asp = int(sense.active_solar_power)
+            ap = int(sense.active_power)
+            power_diff = asp-ap                       # Watts being set back to the grid
+        except :
+            printmsg("Sense Timeout")
+            sleep(10)
+            continue # back to the top of the order
+
+        if vehicles[0].available() :
+            try :
+                chargedata=vehicles[0].get_vehicle_data()['charge_state']
+            except teslapy.HTTPError as e:
+                printerror("Tesla failed to update, please wait a minute...", e)
+                sleep( 60 )
+                continue
+                
+            if chargedata['charging_state'] == "Disconnected": # Loop w/o msgs until connected
+                if not pshown :
+                    printmsg(" Please plug the vehicle in...\n\n")
+                    pshown = True
+                sleep( 60 )
+                continue
+            else : pshown = False
             
-        if chargedata['charging_state'] == "Disconnected":
-            if not shown :
-                print( datetime.datetime.now().strftime( "%I:%M %p" ), " Please plug the vehicle in..." )
-                shown = True
-            sleep( 60 )
-            continue
-        else : shown = False
+            if chargedata['battery_level'] >= chargedata['charge_limit_soc'] : # Loop when full
+                if not bshown :
+                    printmsg("Full Battery! Waiting...")
+                    bshown = True
+                sleep( 60 )
+                continue
+            else : bshown = False
+
+            if chargedata['fast_charger_present']:    # Loop while DC Fast Charging
+                printmsg("Supercharging...")
+                if charge != chargedata['battery_level'] :
+                    charge = chargedata['battery_level']
+                    print( "\nLevel:",
+                        chargedata['battery_level'], "%, Limit",
+                        chargedata['charge_limit_soc'], "%, Rate",
+                        chargedata['charger_power'], "kW, ",
+                        chargedata['charger_voltage'], "Volts, ",
+                        chargedata['fast_charger_type'],
+                        chargedata['minutes_to_full_charge'], "Minutes remaining\n" )
+                sleep( 60 )
+                continue
+
+            if chargedata['charging_state'] == "Charging": # Collect charging info
+                volts =   chargedata['charger_voltage']
+                rate =    chargedata['charge_current_request']
+                maxrate = chargedata['charge_current_request_max']
+                newrate = min( rate + int( power_diff / volts ), maxrate )
+                if newrate == 1 or newrate == 2 : newrate = 0
+                charging = True
+            else:
+                charging = False
+                
             
-        if chargedata['fast_charger_present']:
-            print( datetime.datetime.now().strftime( "%I:%M %p" ), chargedata['fast_charger_brand'], "Charging..." )
+        if charging :                                 # check if need to change rate or stop
+            if power_diff > 1 :
+                print( "Charging at", rate, "amps, with", power_diff, "watts surplus" )
+                if newrate > rate :
+                    print( "Increasing charging to", newrate, "amps" )
+                    try :
+                        vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
+                        if newrate < 5 : vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
+                        rate = newrate
+                    except teslapy.VehicleError as e : printerror("Error up", e)
+                    except teslapy.HTTPError as e: printerror("Failed up", e)
+                        
+            elif power_diff < -1 :                    # Not enough free power to continue charging
+                print( "Charging at", rate, "amps, with", power_diff, "watts usage" )
+                if newrate < minrate:                 # Stop charging when below minrate
+                    if not loop :
+                        print("Just Once More")       # Delay powering off once for suprious data
+                        loop = True
+                    else :
+                        print( "Stopping charge" )
+                        try :
+                            vehicles[0].command( 'STOP_CHARGE' )
+                        except teslapy.VehicleError as e : printerror("Won't stop charging", e)
+                        except teslapy.HTTPError as e: printerror("Failed to stop", e)
+                        loop = False
+
+                elif newrate < rate :                 # Slow charging to match free solar
+                    print( "Slowing charging to", newrate, "amps" )
+                    try :
+                        vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
+                        if newrate < 5 : vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
+                        rate = newrate
+                    except teslapy.VehicleError as e : printerror("Error down", e)
+                    except teslapy.HTTPError as e: printerror("Failed down", e)
+            else :
+                print( "Charging at", rate, "amps" )  # -1, 0 or 1 watt diff, so don't say "watts"
+                    
+        else :                                        # NOT Charging, check if time to start
+            print( "Not Charging, Spare power at", power_diff, "watts" )
+            if power_diff > ( minrate * volts ) :     # Minimum free watts to wake car and charge
+                print( "Starting charge" )
+                try : vehicles[0].sync_wake_up()
+                except teslapy.VehicleError as e : printerror("Won't wake up", e)
+                except teslapy.VehicleError as e: printerror("Wake Timeout", e)
+
+                if vehicles[0].available() :
+                    try :                             # Check LIVE data first
+                        chargedata=vehicles[0].get_vehicle_data()['charge_state']
+                        if chargedata['charging_state'] == "Disconnected":
+                            print(" Please plug the vehicle in...")
+                            pshown = True
+                            continue
+                        elif chargedata['charging_state'] != "Charging" :
+                            vehicles[0].command( 'START_CHARGE' )
+                            vehicles[0].command( 'CHARGING_AMPS', charging_amps=minrate )
+                            vehicles[0].command( 'CHARGING_AMPS', charging_amps=minrate )
+                            charging = True
+                    except teslapy.VehicleError as e : print("Won't start charging", e)
+
+        if charging :                                 # Display stats every % charge
             if charge != chargedata['battery_level'] :
                 charge = chargedata['battery_level']
-                maxrate = chargedata['charge_rate']
-                rate = chargedata['charger_actual_current']
-                volts = chargedata['charger_voltage']
-                print( charge, "%,", volts, "Volts", rate, "Amps of", maxrate, "Max Amps, totalling", volts * rate, "KW")
-            sleep( 60 )
-            continue
+                print( "\nLevel:",
+                    chargedata['battery_level'], "%, Limit",
+                    chargedata['charge_limit_soc'], "%, Rate is",
+                    chargedata['charge_amps'], "of a possible",
+                    chargedata['charge_current_request_max'], "Amps,",
+                    chargedata['charger_voltage'], "Volts, ",
+                    chargedata['time_to_full_charge'], "Hours remaining\n" )
 
-        if chargedata['charging_state'] == "Charging":
-            volts = chargedata['charger_voltage']
-            rate = chargedata['charge_current_request']
-            maxrate = chargedata['charge_current_request_max']
-            charging = True
-        else:
-            charging = False
-        
-    if charging :                           # check if need to change rate or stop
-        newrate = min( rate + int( power_diff / volts ), maxrate )
-        if power_diff > 1 :
-            print( "Charging at", rate, "amps, with", power_diff, "watts surplus" )
-            if newrate > rate :
-                print( "Increasing charging to", newrate, "amps" )
-                try :
-                    vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
-                    if newrate < 5 :
-                        vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
-                    rate = newrate
-                except teslapy.HTTPError as e:
-                    print( "failed up\n", str(e).split("}")[0], "}" )
-                    
-        elif power_diff < -1 :                                    # Not enough power
-            print( "Charging at", rate, "amps, with", power_diff, "watts usage" )
-            if newrate < minrate:                       # can't charge below minrate
-                if loop :
-                    print( "Stopping charge" )
-                    try :
-                        vehicles[0].command( 'STOP_CHARGE' )
-                    except teslapy.HTTPError as e: print( "failed to stop\n", str(e).split("}")[0] )
-                    loop = False
-                else :
-                    print("Just Once More")
-                    loop = True
-
-            elif newrate < rate :
-                print( "Slowing charging to", newrate, "amps" )
-                try :
-                    vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
-                    if newrate < 5 : #API requires a second command for values below 5
-                        vehicles[0].command( 'CHARGING_AMPS', charging_amps = newrate )
-                    rate = newrate
-                except teslapy.HTTPError as e:
-                    print( "failed down\n", str(e).split("}")[0], "}" )
-        else :
-            print( "Charging at", rate, "amps" ) # -1, or 1 watt or 0 watts diff
-                
-    else :                                  # NOT Charging, check if time to start
-        if chargedata['battery_level'] == chargedata['charge_limit_soc'] : exit("Full Battery!")
-        print( "Not Charging, Spare power at", power_diff, "watts" )
-        if power_diff > ( minrate * volts ) :                    # Minimum charge watts
-            print( "Starting charge" )
-            try : vehicles[0].sync_wake_up()
-            except teslapy.VehicleError as e:
-                print( "Wake Timeout\n", str(e).split("}")[0], "}" )
-            except teslapy.HTTPError as e :
-                print( "Failed to wake\n", str(e).split("}")[0], "}" )
-                sleep( 10 )
-            print( "On", car['display_name'] )
-            if vehicles[0].get_vehicle_summary()['state'] == 'online' :
-                try :
-                    if vehicles[0].get_vehicle_data()['charge_state']['charging_state'] != "Charging" :
-                        vehicles[0].command( 'START_CHARGE' )
-                        vehicles[0].command( 'CHARGING_AMPS', charging_amps=minrate )
-                        vehicles[0].command( 'CHARGING_AMPS', charging_amps=minrate )
-                except teslapy.HTTPError as e :
-                    print( "failed to start charging\n", str(e).split("}")[0], "}" )
-
-    if car['state'] == 'online' :
-        if charge != chargedata['battery_level'] :
-            charge = chargedata['battery_level']
-            print("\n", charge, "%\n")
-
-    print( datetime.datetime.now().strftime( "%I:%M %p" ), " Wait a minute..." )
-    sleep( 60 ) #The fastest the Sense API will update
+        printmsg(" Wait a minute...")
+        sleep( 60 )                                   # The fastest the Sense API will update
