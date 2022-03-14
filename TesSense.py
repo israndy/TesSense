@@ -177,7 +177,6 @@ async def run_tes_sense(mutable_plug):
 
             else :                                        # NOT Charging, check if time to start
                 print( "Not Charging, Spare power at", power_diff, "watts" )
-                mutable_plug.data_source.power = 10
                 if power_diff > ( minrate * volts ) :     # Minimum free watts to wake car and charge
                     print( "Starting charge" )
                     try : vehicles[0].sync_wake_up()
