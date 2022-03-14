@@ -1,0 +1,7 @@
+sources:
+  - mutable:
+      plugs:
+      - TesSense:
+          alias: "Tesla Charger"
+          mac: 50:c7:bf:f6:4f:39 # matches value in TesSense.py in main()
+          power: 0 # will be updated with live values
