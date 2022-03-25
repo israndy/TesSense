@@ -184,14 +184,14 @@ async def run_tessense(mutable_plug):
                             await asyncio.sleep(180)       # Didn't start so cycle back to top
                             continue
             else :                                         # Sleeping, check if need to wake and charge
-                if power_diff > ( minrate * volts ) :      # There is enough free solar to charge with
-                    Wake(vehicles[0])                      # Also an initial wake() to get vehicle status
-                    rate = newrate = 0                     # Reset rate as things will have changed
-                    continue
-                elif fullORunplugged == 1 :                # Because battery is at the charge limit
+                if fullORunplugged == 1 :                  # Because battery is at the charge limit
                     print("Battery full to limit, free power is", power_diff, "watts" )
                 elif fullORunplugged == 2 :                # Because Tesla is not plugged in
                     print("Please plug in, free power is", power_diff, "watts" )
+                elif power_diff > ( minrate * volts ) :    # There is enough free solar to charge with
+                    Wake(vehicles[0])                      # Also an initial wake() to get vehicle status
+                    rate = newrate = 0                     # Reset rate as things will have changed
+                    continue                
                 else : print("Sleeping, free power is", power_diff, "watts" ) # Just not enough to charge
 
             printmsg(" Wait two minutes...")               # Message after every complete loop
