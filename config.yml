@@ -1,7 +1,0 @@
-sources:
-  - mutable:
-      plugs:
-      - TesSense:
-          alias: "Tesla"
-          mac: 53:75:31:f8:3a:8c # matches value in TesSenseLink.py line 245
-          power: 0 # will be updated with live values
