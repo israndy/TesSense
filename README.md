@@ -1,9 +1,17 @@
 # TesSense
-Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Fifth Release (3/16/22)
+Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Sixth Release (3/25/22)
+
+Attempting to AC charge away from home will not be impacted by this app running as long as there is
+enough solar to cover your home usage, I haven't tested yet at night or when the home usage exceeds 
+the solar supply...
 
 TesSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
 energy your solar system is generating and asks your Tesla to start or stop charging and adjusts the 
 amps used for charging, based on the amount of free solar and updates every two minutes.
+
+Integration with the SenseLink service allows this app to communicate as a TP-Link to the Sense App and 
+send the active energy being used for charging by the Tesla so it will be displayed in the Sense App.
+This gives extra feedback as to the status of your cars charging
 
 If you have this app running and plug your Tesla in you can charge using ANY model of EVSE and the 
 Python3 script will get information from your car about what capabilities your connection has and then 
@@ -12,7 +20,7 @@ of your wall connector.
 
 It plays nicely with the Tesla App allowing you to see the changes as they happen and gives feedback 
 about what is happening with the TesSense app on it's standard output. With the fifth release of this
-app it now supports SenseLink sending the wattage back to the Sense App for logging..
+app it now supports SenseLink sending the wattage back to the Sense App for logging.
 
 You will need to edit this app, placing your Username and Password for your Sense Energy Monitor account, 
 and your login for your Tesla account in the appropriate locations. The first time this python script 
@@ -23,10 +31,8 @@ going down or anytime there are too many power draws in your location the app wi
 off charging. When the surplus solar returns, the charging will start again. After dark your car will no 
 longer be woken up periodically to see if it needs charging. 
 
-Requires the installation of TeslaPy, SenseLink, and Sense_API:
+Requires the installation of TeslaPy and SenseLink:
 
 python3 -m pip install teslapy
-
-python3 -m pip install sense_energy
 
 python3 -m pip install senselink
