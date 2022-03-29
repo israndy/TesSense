@@ -177,7 +177,10 @@ async def run_tessense(mutable_plug):
                         PrintUpdate(0)                     # Display charging info every % change
                                                            # Display where we have been:
                     if rate == 0 :
-                        print( "Not charging until there are", minrate * volts, "watts free, now: ", power_diff)
+                        if power_diff > minrate * volts :
+                            print( "Not charging, usage at", power_diff, "watts")
+                        else :
+                            print( "Not charging, have", power_diff, "watts, need", minrate * volts)
                     elif power_diff > 1 :                    # Enough free power to maybe increase
                         print( "Charging at", rate, "amps, with", power_diff, "watts surplus" )
                     elif power_diff < -1 :                 # Not enough free power to continue
