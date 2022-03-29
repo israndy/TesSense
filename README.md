@@ -1,9 +1,5 @@
 # TesSense
-Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Sixth Release (3/25/22)
-
-Attempting to AC charge away from home will not be impacted by this app running as long as there is
-enough solar to cover your home usage, I haven't tested yet at night or when the home usage exceeds 
-the solar supply...
+Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Seventh Release (3/29/22)
 
 TesSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
 energy your solar system is generating and asks your Tesla to start or stop charging and adjusts the 
