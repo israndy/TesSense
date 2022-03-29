@@ -24,8 +24,7 @@ is run you will be prompted for your password by Tesla and you will receive a co
 that URL back into the app and you will be logged in securely and you can watch as the app detects your 
 surplus solar and uses that to set the charging rate on your car. Before sunrise and after the sun starts 
 going down or anytime there are too many power draws in your location the app will ask your Tesla to turn 
-off charging. When the surplus solar returns, the charging will start again. After dark your car will no 
-longer be woken up periodically to see if it needs charging. 
+off charging. When the surplus solar returns, the charging will start again.
 
 Requires the installation of TeslaPy and SenseLink:
 
