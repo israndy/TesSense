@@ -210,7 +210,7 @@ async def run_tessense(mutable_plug):
                             rate = newrate
                     else :
                         print( "Not Charging, usage is at", power_diff, "watts" )
-                        SetAmps(car, newrate, "Error during rate setting")
+                        SetAmps(vehicles[0], newrate, "Error during rate setting")
 
             else :                                         # Sleeping, check if need to wake and charge
                 if power_diff > ( minrate * volts ) and not fullORunplugged :
