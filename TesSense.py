@@ -1,5 +1,8 @@
 import datetime, sys, logging
 from time import sleep
+import geopy.geocoders  # 1.14.0 or higher required
+from geopy.geocoders import Nominatim
+from geopy.exc import *
 
 # To install support module:
 # Python3 -m pip install sense_energy
@@ -14,22 +17,22 @@ from senselink.data_source import MutableSource
 # Python3 -m pip install teslapy
 import teslapy
 
-username = 'elon@tesla.com'         # Sense's and Tesla's login
-password = 'password'               # Sense's password, Tesla will prompt for it's own
-
 """
- TesSense w/ SenseLink  -Randy Spencer 2022 Version 6
+ TesSense w/ SenseLink  -Randy Spencer 2022 Version 7
  Python charge monitoring utility for those who own the Sense Energy Monitor
  Uses the stats for Production and Utilization of electricity to control
  your main Tesla's AC charging to use excess production only when charging.
- With SenseLink integration the Tesla usage will show in the Sense app.
- Simply plug in your car, update your info above, and type> python3 tessense.py
+ Simply plug in your car, update your info below, and type> python3 tessense.py
 
- Added: another minute to remove powering off due to spurius spikes/clouds
  Added: reporting the Tesla's charging to Sense as if plugged into a TP-Link/Kasa
+ Added: geopy checking of location of Tesla to be sure it's charging at home
  Add: read & display the watts usage of the other EV charging from the HS-110
  Add: ability to find TP-Link devices on the network and control them.
 """
+
+#username = 'elon@tesla.com'         # Sense's and Tesla's login
+#password = 'password'               # Sense's password, Tesla will prompt for it's own
+#homeaddress = ''
 
 print ("Initating connection to Sense...")
 sense = Senseable(wss_timeout=30,api_timeout=30)
@@ -37,14 +40,13 @@ sense.authenticate(username, password)
 
 #/c Set stdout as logging handler
 root_log = logging.getLogger()
-root_log.setLevel(logging.WARNING)
+root_log.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
 
 def printmsg(msg) :                                        # Timestamped message
     print( " ", datetime.datetime.now().strftime( "%a %I:%M %p" ), msg )
     
 def printerror(error, err) :                               # Error message with truncated data
-    print("Error "*20)
     print(str(err).split("}")[0], "}\n", datetime.datetime.now().strftime( "%a %I:%M %p" ), error)
 
 
@@ -62,24 +64,27 @@ def UpdateSense() :                                        # Update Sense info
         power_diff = asp-ap                                # Watts being sent back to the grid
 
 def UpdateTesla(car) :                                     # Grab the latest charge info from the Tesla
+    global cardata
     global chargedata
     try :
-        chargedata = car.get_vehicle_data()['charge_state']
+        cardata = car.get_vehicle_data()
     except teslapy.HTTPError as e:
         printerror("Tesla failed to update, please wait a minute...", e)
         return(True)
+    chargedata = cardata['charge_state']
 
 def PrintUpdate(fast) :                                    # Display stats at every % change
     print( "\nLevel:",
         chargedata['battery_level'], "%, Limit",
-        chargedata['charge_limit_soc'], "%, Rate is",
-        chargedata['charge_amps'], "of a possible",
-        chargedata['charge_current_request_max'], "Amps,\n",
-        volts, "Volts, ",
+        chargedata['charge_limit_soc'], "%,",
         chargedata['charge_energy_added'], "kWh added, ", end="")
     if not fast : print(
+        volts, "Volts\n Rate is",
+        chargedata['charge_amps'], "of a possible",
+        chargedata['charge_current_request_max'], "Amps,",
         chargedata['time_to_full_charge'], "Hours remaining\n" )
     else : print(
+        chargedata['charge_rate'], "Charge Rate, ",
         chargedata['minutes_to_full_charge'], "Minutes remaining\n" )
 
 def CheckSuperCharging() :
@@ -87,6 +92,17 @@ def CheckSuperCharging() :
         printmsg("Supercharging...")
         PrintUpdate(1)
         return(True)
+        
+def Locate(vehicle, dr) :
+    coords = '%s, %s' % (dr['latitude'], dr['longitude'])
+    try:
+        osm = Nominatim(user_agent='TeslaPy', proxies=vehicle.tesla.proxies)
+        location = osm.reverse(coords).address
+    except (GeocoderTimedOut, GeocoderUnavailable) as e:
+        printerror("Geocoder error", e)
+    else:
+        logging.info(location)
+        return(location)
 
 def SendCmd(car, cmd, err) :                               # Start or Stop charging
     try :
@@ -110,18 +126,11 @@ def StopCharging(car) :
     SendCmd(car, 'STOP_CHARGE', "Failed to stop")
 
 def StartCharging(car, newrate) :
-    if chargedata['charging_state'] == "Disconnected":
-        printmsg("Please plug in")
-        return(2)
-    elif chargedata['battery_level'] >= chargedata['charge_limit_soc'] :
-        printmsg("Full Battery")
-        return(1)
-    elif chargedata['charging_state'] != "Charging" :
+    if chargedata['charging_state'] != "Charging" :
         print( "Starting charge at", newrate, "Amps")
         SendCmd(car, 'START_CHARGE', "Won't start charging")
         SetAmps(car, newrate, "Won't start charging 2")        # Set the Amps twice for values under 5 amps
         if newrate < 5 : SetAmps(car, newrate, "Won't start charging 3")
-        return(0)
         
 def Wake(car) :
     print("Waking...")
@@ -150,6 +159,10 @@ async def run_tessense(mutable_plug):
                 elif CheckSuperCharging() :                # Display any Supercharging or DCFC data
                     await asyncio.sleep(120)               # Loop while Supercharging back to top
                     continue
+                elif Locate(vehicles[0], cardata['drive_state']) != homeaddress :
+                    printmsg('Away from home, wait 4 minutes') # Prevent remote charging issues with app
+                    await asyncio.sleep(240)
+                    continue
                 else :                                     # Calculate new rate of charge
                     rate = chargedata['charge_current_request']
                     maxrate = chargedata['charge_current_request_max']
@@ -157,6 +170,8 @@ async def run_tessense(mutable_plug):
                     if -5 < newrate < minrate : newrate = 0 # Deadzone where charger is on at zero amps
                                         
                 if chargedata['charging_state'] == "Charging" : # Display where we have been
+                    if chargedata['battery_level'] < chargedata['charge_limit_soc'] :
+                        fullORunplugged = 0                    # Catch when it is plugged in and charges
                     if  level != chargedata['battery_level'] or limit != chargedata['charge_limit_soc'] :
                         level, limit = chargedata['battery_level'], chargedata['charge_limit_soc']
                         PrintUpdate(0)                     # Display charging info every % change
@@ -177,21 +192,25 @@ async def run_tessense(mutable_plug):
                     
                 else :                                     # Not charging, check if need to start
                     mutable_plug.data_source.power = 0     # No longer charging, let Sense know
-                    print( "Not Charging, Spare power at", power_diff, "watts" )
                     if power_diff > ( minrate * volts ) :  # Minimum free watts to charge car
-                        fullORunplugged = StartCharging(vehicles[0], newrate)
-                        if fullORunplugged :
-                            await asyncio.sleep(180)       # Didn't start so cycle back to top
-                            continue
+                        if chargedata['charging_state'] == "Disconnected":
+                            print("Please plug in, power at", power_diff, "watts" )
+                            fullORunplugged = 2
+                        elif chargedata['battery_level'] >= chargedata['charge_limit_soc'] :
+                            print("Full Battery, power at", power_diff, "watts" )
+                            fullORunplugged = 1
+                        else :
+                            StartCharging(vehicles[0], newrate)
+                            rate = newrate
+                    else :
+                        print( "Not Charging, usage is at", power_diff, "watts" )
+                        SetAmps(car, newrate, "Error during rate setting")
+
             else :                                         # Sleeping, check if need to wake and charge
-                if fullORunplugged == 1 :                  # Because battery is at the charge limit
-                    print("Battery full to limit, free power is", power_diff, "watts" )
-                elif fullORunplugged == 2 :                # Because Tesla is not plugged in
-                    print("Please plug in, free power is", power_diff, "watts" )
-                elif power_diff > ( minrate * volts ) :    # There is enough free solar to charge with
-                    Wake(vehicles[0])                      # Also an initial wake() to get vehicle status
-                    rate = newrate = 0                     # Reset rate as things will have changed
-                    continue                
+                if power_diff > ( minrate * volts ) and not fullORunplugged :
+                    Wake(vehicles[0])                      # Also an initial daytime wake() to get status
+                    rate = newrate = 0   # Reset rate as things will have changed
+                    continue
                 else : print("Sleeping, free power is", power_diff, "watts" ) # Just not enough to charge
 
             printmsg(" Wait two minutes...")               # Message after every complete loop
@@ -222,7 +241,6 @@ async def main():                                          # Much thanks to cbpo
 
     logging.info("Starting SenseLink controller")
     await asyncio.gather(*tasks)
-
 
 
 if __name__ == "__main__":
