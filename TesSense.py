@@ -30,9 +30,9 @@ import teslapy
  Add: ability to find TP-Link devices on the network and control them.
 """
 
-#username = 'elon@tesla.com'         # Sense's and Tesla's login
-#password = 'password'               # Sense's password, Tesla will prompt for it's own
-#homeaddress = ''
+username = 'elon@tesla.com'         # Sense's and Tesla's login
+password = 'password'               # Sense's password, Tesla will prompt for it's own
+homeaddress = ''
 
 print ("Initating connection to Sense...")
 sense = Senseable(wss_timeout=30,api_timeout=30)
@@ -169,18 +169,21 @@ async def run_tessense(mutable_plug):
                     newrate = min( rate + int( power_diff / volts ), maxrate )
                     if -5 < newrate < minrate : newrate = 0 # Deadzone where charger is on at zero amps
                                         
-                if chargedata['charging_state'] == "Charging" : # Display where we have been
+                if chargedata['charging_state'] == "Charging" : # Charging, update status
                     if chargedata['battery_level'] < chargedata['charge_limit_soc'] :
-                        fullORunplugged = 0                    # Catch when it is plugged in and charges
+                        fullORunplugged = 0                # Mark it as plugged in and not full
                     if  level != chargedata['battery_level'] or limit != chargedata['charge_limit_soc'] :
                         level, limit = chargedata['battery_level'], chargedata['charge_limit_soc']
                         PrintUpdate(0)                     # Display charging info every % change
-                    if power_diff > 1 :                    # Enough free power to continue
+                                                           # Display where we have been:
+                    if rate == 0 :
+                        print( "Not charging until there are", minrate * volts, "watts free, now: ", power_diff)
+                    elif power_diff > 1 :                    # Enough free power to maybe increase
                         print( "Charging at", rate, "amps, with", power_diff, "watts surplus" )
                     elif power_diff < -1 :                 # Not enough free power to continue
                         print( "Charging at", rate, "amps, with", power_diff, "watts usage" )
                     else : print( "Charging at", rate, "amps" ) # power_diff = -1, 0 or 1, so don't say "watts"
-                                                           # Charging so see if need to stop or change rate
+                                                           
                     if newrate < 0 :                       # Stop charging as there's no free power
                         StopCharging(vehicles[0])
                     elif newrate > rate :                  # Charge faster with any surplus
@@ -191,8 +194,8 @@ async def run_tessense(mutable_plug):
                     mutable_plug.data_source.power = rate * volts # Update Sense with current info (Ha!)
                     
                 else :                                     # Not charging, check if need to start
-                    mutable_plug.data_source.power = 0     # No longer charging, let Sense know
-                    if power_diff > ( minrate * volts ) :  # Minimum free watts to charge car
+                    mutable_plug.data_source.power = 0     # Let Sense know we are not charging
+                    if power_diff > ( minrate * volts ) :  # Minimum free watts to start charge
                         if chargedata['charging_state'] == "Disconnected":
                             print("Please plug in, power at", power_diff, "watts" )
                             fullORunplugged = 2
@@ -241,6 +244,7 @@ async def main():                                          # Much thanks to cbpo
 
     logging.info("Starting SenseLink controller")
     await asyncio.gather(*tasks)
+
 
 
 if __name__ == "__main__":
