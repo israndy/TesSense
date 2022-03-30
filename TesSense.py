@@ -1,5 +1,6 @@
 import datetime, sys, logging
 from time import sleep
+from suntime import Sun
 import geopy.geocoders  # 1.14.0 or higher required
 from geopy.geocoders import Nominatim
 from geopy.exc import *
@@ -26,6 +27,7 @@ import teslapy
 
  Added: reporting the Tesla's charging to Sense as if plugged into a TP-Link/Kasa
  Added: geopy checking of location of Tesla to be sure it's charging at home
+ Added: sunset and sunrise awareness so it stops the charge after dark
  Add: read & display the watts usage of the other EV charging from the HS-110
  Add: ability to find TP-Link devices on the network and control them.
 """
@@ -40,7 +42,7 @@ sense.authenticate(username, password)
 
 #/c Set stdout as logging handler
 root_log = logging.getLogger()
-root_log.setLevel(logging.INFO)
+root_log.setLevel(logging.WARNING)
 handler = logging.StreamHandler(sys.stdout)
 
 def printmsg(msg) :                                        # Timestamped message
@@ -87,13 +89,13 @@ def PrintUpdate(fast) :                                    # Display stats at ev
         chargedata['charge_rate'], "Charge Rate, ",
         chargedata['minutes_to_full_charge'], "Minutes remaining\n" )
 
-def CheckSuperCharging() :
-    if chargedata['fast_charger_present']:                 # Loop while DC Fast Charging
+def CheckSuperCharging() :                                 # Loop while DC Fast Charging
+    if chargedata['fast_charger_present']:
         printmsg("Supercharging...")
         PrintUpdate(1)
         return(True)
         
-def Locate(vehicle, dr) :
+def Locate(vehicle, dr) :                                  # First check if the car is at home
     coords = '%s, %s' % (dr['latitude'], dr['longitude'])
     try:
         osm = Nominatim(user_agent='TeslaPy', proxies=vehicle.tesla.proxies)
@@ -103,6 +105,13 @@ def Locate(vehicle, dr) :
     else:
         logging.info(location)
         return(location)
+        
+def SunNotUp(vehicle, drive_state) :                       # Stop the charging if it's going after sunset
+    sun = Sun(drive_state['latitude'], drive_state['longitude'])
+    sunrise = sun.get_local_sunrise_time().replace(tzinfo=None)
+    sunset = sun.get_local_sunset_time().replace(tzinfo=None)
+    now = datetime.datetime.now()
+    if sunrise < now < sunset : return(True)
 
 def SendCmd(car, cmd, err) :                               # Start or Stop charging
     try :
@@ -110,7 +119,7 @@ def SendCmd(car, cmd, err) :                               # Start or Stop charg
     except teslapy.VehicleError as e : printerror("V: "+err, e)
     except teslapy.HTTPError as e: printerror("H: "+err, e)
 
-def SetAmps(car, newrate, err) :                              # Increase or decrease charging rate
+def SetAmps(car, newrate, err) :                           # Increase or decrease charging rate
     try :
         car.command('CHARGING_AMPS', charging_amps = newrate)
     except teslapy.VehicleError as e : printerror("V: "+err, e)
@@ -172,6 +181,11 @@ async def run_tessense(mutable_plug):
                 if chargedata['charging_state'] == "Charging" : # Charging, update status
                     if chargedata['battery_level'] < chargedata['charge_limit_soc'] :
                         fullORunplugged = 0                # Mark it as plugged in and not full
+                    if SunNotUp(vehicles[0], cardata['drive_state']) :
+                        StopCharging(vehicles[0])              # Stop charging, the sun went down
+                        printmsg("Nighttime")
+                        await asyncio.sleep(120)
+                        continue
                     if  level != chargedata['battery_level'] or limit != chargedata['charge_limit_soc'] :
                         level, limit = chargedata['battery_level'], chargedata['charge_limit_soc']
                         PrintUpdate(0)                     # Display charging info every % change
@@ -200,6 +214,7 @@ async def run_tessense(mutable_plug):
                     mutable_plug.data_source.power = 0     # Let Sense know we are not charging
                     if power_diff > ( minrate * volts ) :  # Minimum free watts to start charge
                         if chargedata['charging_state'] == "Disconnected":
+                            SetAmps(vehicles[0], newrate, "Error during rate setting")
                             print("Please plug in, power at", power_diff, "watts" )
                             fullORunplugged = 2
                         elif chargedata['battery_level'] >= chargedata['charge_limit_soc'] :
@@ -210,7 +225,6 @@ async def run_tessense(mutable_plug):
                             rate = newrate
                     else :
                         print( "Not Charging, usage is at", power_diff, "watts" )
-                        SetAmps(vehicles[0], newrate, "Error during rate setting")
 
             else :                                         # Sleeping, check if need to wake and charge
                 if power_diff > ( minrate * volts ) and not fullORunplugged :
