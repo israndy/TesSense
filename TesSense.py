@@ -42,7 +42,7 @@ sense.authenticate(username, password)
 
 #/c Set stdout as logging handler
 root_log = logging.getLogger()
-root_log.setLevel(logging.WARNING)
+root_log.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
 
 def printmsg(msg) :                                        # Timestamped message
