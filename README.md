@@ -1,5 +1,5 @@
 # TesSense
-Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Seventh Release (3/29/22)
+Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Eighth Release (5/2/22)
 
 TesSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
 energy your solar system is generating and asks your Tesla to start or stop charging and adjusts the 
@@ -18,7 +18,7 @@ It plays nicely with the Tesla App allowing you to see the changes as they happe
 about what is happening with the TesSense app on it's standard output. With the fifth release of this
 app it now supports SenseLink sending the wattage back to the Sense App for logging.
 
-You will need to edit this app, placing your Username and Password for your Sense Energy Monitor account, 
+**You will need to edit this app**, placing your Username and Password for your Sense Energy Monitor account, 
 and your login for your Tesla account in the appropriate locations. The first time this python script 
 is run you will be prompted for your password by Tesla and you will receive a confirmation code, paste 
 that URL back into the app and you will be logged in securely and you can watch as the app detects your 
