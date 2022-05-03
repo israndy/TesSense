@@ -42,9 +42,6 @@ from senselink.data_source import MutableSource
 # pip3 install teslapy
 import teslapy
 
-# pip3 install geopy
-from geopy.geocoders import Nominatim
-
 # pip3 install suntime
 from suntime import Sun
 
