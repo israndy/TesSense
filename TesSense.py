@@ -293,9 +293,6 @@ async def CheckTPLink() :                       # Based on github.com/piekstra/t
                         if watts > 5 and mutable_plug.data_source.power == 0 and power_diff < -(watts/3) :
                             printmsg("Powering off: "+ nameddevice + " " + str(power_diff) + " less than " + str(-(round(watts/3,1))))
                             await unit.power_off()
-                        if 5 < watts < 1200 and nameddevice == 'Mitsubishi MiEV' :
-                            printmsg("Powering off iMiev is full")
-                            await unit.power_off()
             if output != '' :
                 print("=" * 72)
                 print(output)
