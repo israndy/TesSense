@@ -137,8 +137,7 @@ def Vent(car, command) :
     print("\033[31mWindows will now", command, "\033[m")
     try :
         car.command('WINDOW_CONTROL', command = command, lat=lat, lon=lon)
-    except teslapy.VehicleError as e : printerror("V: ", e)
-    except teslapy.HTTPError as e : printerror("H: ", e)
+    except teslapy.VehicleError as e : printerror("Window_Control Failed ", e)
 
 def Wake(car) :
     printmsg("Waking...")
