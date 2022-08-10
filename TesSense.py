@@ -16,7 +16,7 @@ username = 'elon@tesla.com'             # Sense's and TPLink's and Tesla's login
 sensepass = 'sense password'            # Sense's password, Tesla will prompt for it's own
 TPassword = 'TPLink password'           # TPLink's password
 lat, lon  = 38, -122                    # Location where charging will occur (shown at startup)
-#controllist = ["Lamp", "TV", "Heater"]  # TPLink Devices to control (also shown at startup)
+controllist = 0 #["Lamp", "TV", "Heater"]  # Replace '0' with a list of named devices to control
 
 import datetime, asyncio
 import logging, sys, json
