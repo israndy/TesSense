@@ -1,5 +1,5 @@
 """
- TesSense w/ SenseLink  -Randy Spencer 2022 Version 9.5
+ TesSense w/ SenseLink  -Randy Spencer 2022 Version 9.6
  Python charge monitoring utility for those who own the Sense Energy Monitor
  Uses the stats for Production and Utilization of electricity to control
  your main Tesla's AC charging to charge only with excess production.
@@ -92,8 +92,8 @@ def SetAmps(car, newrate, err) :                           # Increase or decreas
 
 def SetCharging(car, newrate, msg) :
     print(msg, "charging to", newrate, "amps")
-    if newrate == 2 : newrate = 1                          # if set to 2 needs to be set to 1 to work
-    SetAmps(car, newrate, "Failed to change")              #  or you will get 3 when executed
+    if newrate == 2 : newrate = 1                          # For API a newrate of 3=3, 2=3, 1=2
+    SetAmps(car, newrate, "Failed to change")              #  so to set to 2 newrate must be 1
     if newrate < 5 :                                       # if under 5 amps you need to send it twice:
         SetAmps(car, newrate, "Failed to change 2")
 
@@ -137,7 +137,7 @@ def Vent(car, command) :
     print("\033[31mWindows will now", command, "\033[m")
     try :
         car.command('WINDOW_CONTROL', command = command, lat=lat, lon=lon)
-    except teslapy.VehicleError as e : printerror("Window_Control Failed ", e)
+    except teslapy.VehicleError as e : printmsg("Window_Control Failed " + str(e))
 
 def Wake(car) :
     printmsg("Waking...")
@@ -159,14 +159,16 @@ async def TesSense() :
         if vehicles[0].get_vehicle_summary()['in_service'] :
             print("Sorry. Currently this car is in for service")
             exit()
-            
-        print("Starting connection to", vehicles[0].get_vehicle_summary()['display_name']+"... (",          round(vehicles[0].get_latest_vehicle_data()['drive_state']['latitude'], 3), round(vehicles[0].get_latest_vehicle_data()['drive_state']['longitude'], 3), ")\n")
+        
+        print("Starting connection to", vehicles[0].get_vehicle_summary()['display_name'])
 
         while (True):                                      # Main loop with night time carve out
             if datetime.datetime.now().time().hour < 8 or datetime.datetime.now().time().hour >= 20 :
-                if round(vehicles[0].get_latest_vehicle_data()['drive_state']['latitude'], 3) == lat and \
-                   round(vehicles[0].get_latest_vehicle_data()['drive_state']['longitude'], 3) == lon :
-                    printmsg("\033[34mNighttime\033[m, Sleeping until next hour...")
+                try:
+                    if round(vehicles[0].get_latest_vehicle_data()['drive_state']['latitude'], 3) == lat and round(vehicles[0].get_latest_vehicle_data()['drive_state']['longitude'], 3) == lon :
+                        printmsg("\033[34mNighttime\033[m, Sleeping until next hour...")
+                except: print("No location data")
+                else:
                     await asyncio.sleep(60 * (60 - datetime.datetime.now().time().minute))
                     continue
                     
@@ -203,11 +205,8 @@ async def TesSense() :
                     
                 if round(cardata['drive_state']['latitude'], 3) != lat and \
                    round(cardata['drive_state']['longitude'], 3) != lon :
-                    try :
-                        Superchargers = vehicles[0].get_nearby_charging_sites()['superchargers']
-                    except teslapy.HTTPError as e :
-                        printerror("Failed to get local Superchargers, please wait 5 minutes...", e)
-                    printmsg(str(round(Superchargers[0]['distance_miles'])) + ' mile(s) from ' + Superchargers[0]['name'] + '. Wait 5 minutes')
+                    print(round(vehicles[0].get_latest_vehicle_data()['drive_state']['latitude'], 3), round(vehicles[0].get_latest_vehicle_data()['drive_state']['longitude'], 3), end='')
+                    printmsg(' Away from home. Wait 5 minutes')
                     await asyncio.sleep(300)               # Prevent remote charging issues
                     continue
 
@@ -248,9 +247,11 @@ async def TesSense() :
                         SetCharging(vehicles[0], newrate, "Slowing")
                     mutable_plug.data_source.power = newrate * volts # Update Sense with current info (Ha!)
 
-            if lastime != vehicles[0].get_latest_vehicle_data()['climate_state']['timestamp'] :
-                lastime = vehicles[0].get_latest_vehicle_data()['climate_state']['timestamp']
-                PrintTemp(vehicles[0])                     # Display cabin temp and fan use
+            try:
+                if lastime != vehicles[0].get_latest_vehicle_data()['climate_state']['timestamp'] :
+                    lastime = vehicles[0].get_latest_vehicle_data()['climate_state']['timestamp']
+                    PrintTemp(vehicles[0])                     # Display cabin temp and fan use
+            except: pass
             printmsg(" Wait two minutes...")               # Message after every complete loop
             await asyncio.sleep(120)                       # Fastest the Sense API will update is 30 sec.
             
@@ -284,14 +285,17 @@ async def CheckTPLink() :                       # Based on github.com/piekstra/t
         print("-"*72)
         thishour = datetime.datetime.now().time().hour
         while(True) :
+            # Sleep until 8 am
             if datetime.datetime.now().time().hour < 8 :
                 printmsg("\033[34mNighttime\033[m, Sleeping until morning...")
                 await asyncio.sleep(60 * (60 - datetime.datetime.now().time().minute))
                 await asyncio.sleep(3600 * 8 - (3600 * datetime.datetime.now().time().hour))
                 continue
+            # Announce on top of the hour to be sure process is still running
             if thishour != datetime.datetime.now().time().hour :
                 thishour = datetime.datetime.now().time().hour
                 printmsg(str(thishour-12 if thishour > 12 else thishour) + " o'clock")
+            # Build message to display if controllist devices are using much power
             output = ''
             for nameddevice in controllist :
                 UpdateSense()
