@@ -29,6 +29,6 @@ surplus solar and uses that to set the charging rate on your car. Before 8 am an
 there are too many power draws in your location on the free solar the app will ask your Tesla to turn 
 off charging. When the surplus solar returns, the charging will start again.
 
-Requires the installation of TeslaPy, and several other libraries document in the code, such as:
+Requires the installation of TeslaPy, and several other libraries documented in the code, such as:
 
 python3 -m pip install teslapy
