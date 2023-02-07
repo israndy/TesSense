@@ -31,6 +31,10 @@ handler = logging.StreamHandler(sys.stdout)
 # To install support module:
 # pip3 install sense_energy
 from sense_energy import Senseable
+print ("Initating connection to Sense...")
+sense = Senseable(wss_timeout=30,api_timeout=30)
+sense.authenticate(username, sensepass)
+
 
 # pip3 install teslapy
 import teslapy
@@ -149,10 +153,6 @@ async def TesSense() :
     global mutable_plug
     rate = newrate = limit = level = lastime = fullORunplugged = 0
     minrate = 2                                            # Minimum rate you can set the charger to
-
-    print ("Initating connection to Sense...")
-    sense = Senseable(wss_timeout=30,api_timeout=30)
-    sense.authenticate(username, sensepass)
 
     retry = teslapy.Retry(total=3, status_forcelist=(500, 502, 503, 504))
     with teslapy.Tesla(username, retry=retry, timeout=30) as tesla:
