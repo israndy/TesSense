@@ -1,5 +1,5 @@
 # TesSense
-Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - 9.6 Release (8/30/22)
+Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - 9.7 Release (2/7/23)
 
 TesSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
 energy your solar system is generating and asks your Tesla to start or stop charging and adjusts the 
