@@ -10,9 +10,12 @@ Other KASA devices can be controlled via SenseLink using the ControlList below, 
 more solar is available more devices are turned on and vice-versa
 """
 
-MINRATE = 2                                                 # Minimum amps you can set the charger to
-LAT,LON = 38, -122                                          # 3 decimal normal charing location
+import asyncio, logging, sys, time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 TZ = ZoneInfo('US/Pacific')                                 # TimeZone name
+LAT,LON = 38, -122                                          # 3 decimal normal charing location
+MINRATE = 2                                                 # Minimum amps you can set the charger to
 SLEEP_UNTIL, SLEEP_AFTER = 8, 20                            # 8AM and 8PM local time
 USERNAME = 'elon@tesla.com'                                 # Sense's and TPLink's and Tesla's login
 SENSEPASS = 'sense password'                                # Sense's password, Tesla will prompt for it's own
@@ -22,9 +25,6 @@ CONTROLLIST = 0 #["Lamp", "TV", "Heater"]                   # Replace '0' with a
 REDTXT, BLUTXT, NORMTXT = '\033[31m', '\033[34m', '\033[m'
 REDBG, GRNBG, NORMBG = '\033[101m', '\033[102m', '\033[0m'
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-import asyncio, logging, sys, time
 #/c Set stdout as logging handler
 root_log = logging.getLogger()
 root_log.setLevel(logging.ERROR)                          # set to ERROR or WARNING or INFO or DEBUG
