@@ -22,6 +22,7 @@ SENSEPASS = 'sense password'                                # Sense's password, 
 KASAPASS = 'TPLink password'                                # TPLink's password
 CONTROLLIST = 0 #["Lamp", "TV", "Heater"]                   # Replace '0' with a list of your devices to control
 
+
 REDTXT, BLUTXT, NORMTXT = '\033[31m', '\033[34m', '\033[m'
 REDBG, GRNBG, NORMBG = '\033[101m', '\033[102m', '\033[0m'
 
@@ -62,7 +63,9 @@ def print_temp(car, cardata):                               # Car temp and fan s
         if cardata['vehicle_state']['fd_window']:           # Open
             print(REDBG, "Close", NORMBG,end=' ')
             vent(car, 'close')
-    print(car.temp_units(cardata['climate_state']['inside_temp']), ', ', end='')
+    print(car.temp_units(cardata['climate_state']['inside_temp'])+', ', end='')
+#    print(cardata['climate_state']['fan_status'],'(fan), ', end='')
+#    print(cardata['climate_state']['cabin_overheat_protection_actively_cooling'],'(cop)', end='')
 
 def print_update(chargedata, fast):                         # Display stats at every % change
     print("\nLevel:",
@@ -111,10 +114,18 @@ def start_charging(car):
             set_amps(car, 1, "Won't start charging 3")
 
 def stop_charging(car):
-    print(REDBG + "Stopping" + NORMBG + " charge")
-    send_cmd(car, 'STOP_CHARGE', "Failed to stop")
-    if car.get_vehicle_data()['vehicle_state']['fd_window']:    # Open
-        vent(car, 'close')
+    try:                                                    # Collect new data from Tesla
+        state = car.get_vehicle_data()['charge_state']['charging_state']
+    except teslapy.HTTPError as e:
+        printerror("Tesla failed to update, please wait a minute...", e)
+    else:
+        if state == "Charging":
+            print(REDBG + "Stopping" + NORMBG + " charge")
+            send_cmd(car, 'STOP_CHARGE', "Failed to stop")
+    try:
+        if car.get_vehicle_data()['vehicle_state']['fd_window']:    # Window's Open
+            vent(car, 'close')
+    except: pass
 
 def vent(car, command):
     try: car.command('WINDOW_CONTROL', command=command, lat=LAT, lon=LON)
@@ -128,17 +139,18 @@ def wake(car):
         printerror("Failed to wake", e)
         return(False)
     else : return(True)
+    
+    
+async def sleepnow(min):
+    for x in range(min): await asyncio.sleep(60)
 
-
-async def sleep_overnight(caller):                          # Most API errors happen overnight
-    printmsg(BLUTXT + 'Nighttime,' + NORMTXT + " sleeping until morning...")
-    thishour = datetime.now(TZ).hour
-    while not SLEEP_UNTIL <= thishour < SLEEP_AFTER:
-        await asyncio.sleep(120)
-        thishour = datetime.now(TZ).hour
-    printmsg(REDTXT + "Good Morning!" + NORMTXT)
-
-
+async def sleepovernight():
+    if not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:  # Not Daytime 8am - 8pm
+        printmsg(BLUTXT + 'Nighttime,' + NORMTXT + " sleeping until morning...")
+        while not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:
+            await sleepnow(2)
+        printmsg(REDTXT + "Good Morning!" + NORMTXT)
+        
 async def TesSense():
     await asyncio.sleep(.1)
     global minwatts, power_diff, timeout, volts, mutable_plug
@@ -157,8 +169,10 @@ async def TesSense():
             except: print("Error reading CarData")
             else:
                 print("... [", round(cardata['drive_state']['latitude'], 3), ",", round(cardata['drive_state']['longitude'], 3), "]")
-            finally:
-                print(" last seen " + mycar.last_seen(), "at", str(mycar['charge_state']['battery_level']) + "% SoC")
+        try:
+            print(" last seen " + mycar.last_seen(), "at", str(mycar['charge_state']['battery_level']) + "% SoC")
+        except:
+            print(" last seen in the future at some % SoC")
 
         while True:                                         # Main loop with night time carve out
             try:
@@ -167,32 +181,27 @@ async def TesSense():
                 print("Failed to check In-Service status on Tesla")
             else:
                 if in_service:
-                    print("Sorry. Currently this car is in Service Mode")
-                    exit()
-
+                    printmsg(" Sorry. Currently this car is in Service Mode")
+                    await sleepnow(20)
+                    continue
+                    
             if 5 < timeout < 100:                           # If Sense Times Out
-                timeout = 100                               # Prevent looping on stop_charging()
+                timeout += 100                              # Prevent looping on stop_charging()
                 stop_charging(mycar)                        # Stop Tesla Charging when Sense offline
-                await asyncio.sleep(60)
-                continue
-
-            if not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:      # Not Daytime 8am - 8pm
-                printmsg(BLUTXT + 'Nighttime,' + NORMTXT + " sleeping until morning...")
-                while not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:
-                    await asyncio.sleep(120)
-                printmsg(REDTXT + "Good Morning!" + NORMTXT)
+                await sleepnow(1)
                 continue
 
             while volts == 0 : await asyncio.sleep(1)       # Syncing with UpdateSense()
             
             if not mycar.available():                       # Car is sleeping
+                await sleepovernight()
                 if power_diff > minwatts and not fullORunplugged:
                     if wake(mycar):                         # Initial daytime wake() to get status
                         rate = newrate = 0                  # Reset rate as things will have changed
                         continue
                     else:
                         print("Wake error. Sleeping 20 minutes and trying again")
-                        await asyncio.sleep(1200)           # Give the API a chance to find the car
+                        await sleepnow(20)           # Give the API a chance to find the car
                         continue
                 else:
                     if fullORunplugged==1: print("Full-", end='')
@@ -200,7 +209,12 @@ async def TesSense():
                     print("Sleeping, free power is", power_diff, "watts")
                     if fullORunplugged:
                         printmsg(" Wait twenty minutes...")
-                        await asyncio.sleep(1200)
+                        for x in range(20):
+                            await asyncio.sleep(60)
+                            try:
+                                if mycar.available(): break
+                            except:
+                                print("Failed availability check")
                         continue
             else:                                           # Car is awake
                 try:
@@ -214,17 +228,19 @@ async def TesSense():
                 if chargedata['fast_charger_present']:
                     printmsg("DC Fast Charging...")
                     print_update(chargedata,1)
-                    await asyncio.sleep(120)                # Loop while Supercharging back to top
+                    await sleepnow(2)                # Loop while Supercharging back to top
                     continue
 
                 if 'latitude' in cardata['drive_state']:    # Prevent remote charging issues
-                    if round(cardata['drive_state']['latitude'], 3) != LAT and \
-                       round(cardata['drive_state']['longitude'], 3) != LON :
+                    if round(cardata['drive_state']['latitude'], 3) == LAT and \
+                       round(cardata['drive_state']['longitude'], 3) == LON :
+                        await sleepovernight()
+                    else:                                   # Away from home
                         print(round(cardata['drive_state']['latitude'], 3), \
                              round(cardata['drive_state']['longitude'], 3), end='')
                         printmsg("Away from home. Wait 5 minutes")
                         fullORunplugged = 2                 # If it's not at home it's unplugged
-                        await asyncio.sleep(300)
+                        await sleepnow(5)
                         continue
                 else:
                     print(REDTXT + "Error: No Location" + NORMTXT)
@@ -272,7 +288,7 @@ async def TesSense():
                         print_temp(mycar, cardata)                      # Display cabin temp and fan use
 
             printmsg("  Wait two minutes...")               # Message after every complete loop
-            await asyncio.sleep(120)                        # Fastest the Sense API will update is 30 sec.
+            await sleepnow(2)                        # Fastest the Sense API will update is 30 sec.
 
 
 async def CheckTPLink():                                    # Based on github.com/piekstra/tplinkcloud-service
@@ -292,6 +308,7 @@ async def CheckTPLink():                                    # Based on github.co
     else:                                                                   # Display devices found
         print("=" * 70)
         if CONTROLLIST:                                                     # Skip list if CL already built
+            print("Found " + str(len(devices)) + " TP-Link E-Meter devices")
             print("Controlled devices:")
             for nameddevice in CONTROLLIST:                                 # Controlled Devices Listing
                 device = await power_manager.get_devices_power_usage_realtime(nameddevice)
@@ -307,7 +324,7 @@ async def CheckTPLink():                                    # Based on github.co
         
         thishour = datetime.now(TZ).hour
         while True:                                        # Main Loop
-            while not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:     # Sleep Overnight
+            while not SLEEP_UNTIL <= datetime.now(TZ).hour < SLEEP_AFTER:   # Sleep Overnight
                 await asyncio.sleep(120)
 
             if thishour != datetime.now(TZ).hour:           # Display every hour
@@ -322,7 +339,7 @@ async def CheckTPLink():                                    # Based on github.co
                     unit = await device_manager.find_device(nameddevice)
                 except:
                     printmsg("Cannot find TPLink device " + nameddevice)
-                    continue                                # Move to the next device
+                    break                                   # Move to the next device
 
                 if unit.device_info.status:                 # Check if unit is online
                     try:
@@ -331,7 +348,7 @@ async def CheckTPLink():                                    # Based on github.co
                         printmsg("Cannot find TPLink device status for " + nameddevice)
                         continue                            # Move to the next device
                         
-                    if not hasattr(device[0].data, 'voltage_mv'):  # Check expected data structure
+                    if not hasattr(device[0].data, 'voltage_mv'):           # Check expected data structure
                         printmsg("Unexpected structure in " + nameddevice)
                     else:
                         factor=1000 if device[0].data.voltage_mv > 1000 else 1
@@ -345,16 +362,19 @@ async def CheckTPLink():                                    # Based on github.co
                             printmsg(REDBG + "Powering off" + NORMBG + ": " + nameddevice + "\nBecause " + str(power_diff) + " watts is less than " + str(-(round(watts / 2))) + " watts threshold")
                             await unit.power_off()
                                                                 
-                        elif watts > 5:             # Display the stats for each running device
+                        elif watts > 5:                     # Display the stats for each running device
+                            if timeout > 20:
+                                print("Sense timeout - " + REDBG + "Powering off " + NORMBG + nameddevice)
+                                await unit.power_off()
                             if output: output += "\n"
                             output = output + nameddevice + " = " + str(round(device[0].data.voltage_mv / factor, 2)) + " volts, " + str(round(device[0].data.power_mw/factor,2)) +    " watts, " + str(round(device[0].data.current_ma / factor, 2)) + " amps, " + str(round(device[0].data.total_wh / factor, 2)) + " 7-day kWhs"
-                                                    # total_wh resets weekly to that day's total
+                                                            # total_wh resets weekly to that day's total
             if output:
                 printmsg(output)
             await asyncio.sleep(180)
 
 
-async def UpdateSense():                                    # Update Sense info every minute via Sense API
+async def UpdateSense():                                    # Update Sense info via Sense API
     global minwatts, power_diff, timeout, volts
     timeout = 0
     print("Initating connection to Sense...")
@@ -362,6 +382,7 @@ async def UpdateSense():                                    # Update Sense info 
     sense.authenticate(USERNAME, SENSEPASS)
     while True:
         try:
+            #sense.update_trend_data()
             sense.update_realtime()
         except:
             timeout += 1
