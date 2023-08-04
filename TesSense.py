@@ -1,5 +1,5 @@
 """
- TesSense w/ SenseLink  -Randy Spencer 2023 Full Version 1.0
+ TesSense w/ SenseLink  -Randy Spencer 8/2023 Full Version 1.1
  Python charge monitoring utility for those who own the Sense Energy Monitor
  Uses Sense stats for production and utilization of electricity to control
  your first Tesla's AC charging to charge only with excess production.
