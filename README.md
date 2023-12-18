@@ -1,4 +1,7 @@
 # TesSense
+
+Noticing an error in getting GPS coordinates, this may be the new API pulling features from the undocumented one
+
 Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Full Release (12/8/23) 1.2
 
 TesSense logs into your Sense Energy Monitor and your Tesla account and tracks the amount of surplus 
