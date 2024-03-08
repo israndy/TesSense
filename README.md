@@ -1,6 +1,6 @@
 # TesSense
 
-Noticing an error in getting GPS coordinates, this may be the new API pulling features from the undocumented one
+This app no longer works with the old Tesla API, waiting on TeslaPy to be updated for the new Fleet API
 
 Charge your Tesla with surplus solar generation as detected by your Sense Energy Monitor - Full Release (12/8/23) 1.2
 
