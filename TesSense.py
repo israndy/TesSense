@@ -150,7 +150,7 @@ async def TesSense():
 
     retry = teslapy.Retry(total = 3,status_forcelist = (500, 502, 503, 504))
     with teslapy.Tesla(USERNAME, retry=retry, timeout = 30) as tesla:
-        mycar = tesla.vehicle_list()[1]
+        mycar = tesla.vehicle_list()[0]
 
         print("Starting connection to", mycar.get_vehicle_summary()['display_name'], end='')
         if not mycar.available():
